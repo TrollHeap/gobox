@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TEMPLATE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-DIR_ROOT="${TEMPLATE_DIR%%/core*}/core"
-source "$DIR_ROOT/lib/hardware/init.sh"
+source "$LIB_DIR/hw/init.sh"
 
 afficher_bloc_info_machine() {
     cat <<EOF
@@ -19,9 +17,7 @@ $mem
 ------------------------------------------------------------------| Stockage de masse |
 $disque
 ----------------------------------------------------------------| État de la batterie |
-$batterie
-$batmod
-$power
+$batterie_block
 ---------------------------------------------------------------------| Cartes réseaux |
 $reseau
 ------------------------------------------------------------------| Cartes graphiques |

@@ -1,41 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BIN_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-DIR_ROOT="${BIN_DIR%%/core*}/core"
+source "$CORE_DIR/etc/config/path.env"
+source "$LIB_DIR/ui/init.sh"
+source "$LIB_DIR/pkgmgr/install_pkgs_csv.sh"
+source "$LIB_DIR/utils/init.sh"
 
-source "$DIR_ROOT/etc/config/pkgs.sh"
-source "$DIR_ROOT/lib/maintenance/loop-pkgs.sh"
-source "$DIR_ROOT/lib/utils/init.sh"
+install() {
+    local os_id
+    os_id="$(detect_os_id)"
+    echo_status "Initialisation de l'installation sur : $(detect_os_id) ᕦ( ͡° ͜ʖ ͡°)ᕤ"
+    install_all_from_csv
 
-launch_maj(){
+    echo_status "Maintenance système complète : mise à jour, nettoyage, autoremove, etc."
+    update_pkgs "$os_id"
+    echo_status_ok "Maintenance réussie"
 
-    echo_status "Début du script de maintenance..."
+    if prompt_yes_no "Désirez-vous un nettoyage du cache de votre système ?"; then
+        echo_status_warn "LE NETTOYAGE DU CACHE VA COMMENCER !"
+        echo_status_warn "Appuyer sur les touches Ctrl+C pour annuler la purge, sinon votre cache sera perdu (╯°□°）╯︵ ┻━┻"
+        for i in 6 5 4 3 2 1; do
+            echo "$i"
+            sleep 1
+        done
+        remove_files  # à décommenter si tu as un script de nettoyage
+        sleep 2
+    fi
 
-    # Fix permissions and Packages
-    fix_permissions && repare_pkgs
-
-    # Installation de nouveaux paquets
-    echo_status "Téléchargement et installation des nouveaux paquets"
-    install_pkgs "${PKGS[@]}" && echo_status_ok "Téléchargement et installation réussi" || echo_status_error "Échec installation paquets"
-
-    # Upgrade system
-    echo_status "Mise à niveau du système"
-    sudo apt upgrade -y && sudo apt full-upgrade -y && echo_status_ok "Mise à jour" || echo_status_error "Échec upgrade"
-
-    # Purge
-    cancel_purge && remove_files
-
-    echo_status_ok "La maintenance a été effectuée avec succès"
+    echo_status_ok "ヽ( •_)ᕗ Installation & mise à jour complète de votre machine réussie"
 }
 
-cancel_purge(){
-    echo_status_warn "!!! ATTENTION !!!" && echo_status_warn "LA PURGE VA COMMENCER !"
-    echo_status_warn "Appuyer sur les touches ctrl+c pour annuler la purge"
-    for i in 6 5 4 3 2 1; do
-        echo "$i"
-        sleep 1
-    done
-}
-
-launch_maj
+install
