@@ -18,7 +18,7 @@ type model struct {
 
 func main() {
 	m := model{
-		choices: []string{"BOOT.sh", "INSTALL.sh", "CLEAN.sh"},
+		choices: []string{"MAJ.sh", "CLEAN.sh", "SHRED.sh", "TEST_HW.sh", "PRINT.sh"},
 	}
 	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {
