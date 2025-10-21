@@ -63,10 +63,8 @@ type GPUInfo struct {
     Driver      string   // Ex: "nvidia"
     Version     string   // Ex: "580.95.05"
     VendorID    string   // Ex: "0x10de"
-    DeviceID    string   // Ex: "0x2860"
     Outputs     []string // Ex: ["eDP-1", "HDMI-A-1"]
     DisplayInfo string   // Ex: "2560x1600"
-    Message     string   // Ex: "GL data unavailable for root."
 }
 ```
 
@@ -178,10 +176,8 @@ type GPUInfo struct {
 🏷️  Vendor        : NVIDIA Corporation (0x10de)
 🔧 Driver         : nvidia
 📦 Version        : 580.95.05
-💡 Device ID      : 0x2860
 🖧 Sorties actives : [eDP-1]
 🖵 Modes affichage : 2560x1600
-📄 Message        : GL data unavailable for root.
 ─────────────────────────────────────────────
 ```
 

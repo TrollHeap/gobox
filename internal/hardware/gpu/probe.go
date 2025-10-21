@@ -61,7 +61,7 @@ func readUevent(cardPath string) (UeventInfo, error) {
 		return UeventInfo{}, fmt.Errorf("lecture du uevent: %w", err)
 	}
 
-	var driver, vendorID, deviceID, pciSlot string
+	var driver, vendorID, pciSlot string
 	for line := range strings.SplitSeq(string(data), "\n") {
 		switch {
 		case strings.HasPrefix(line, "DRIVER="):
@@ -70,7 +70,6 @@ func readUevent(cardPath string) (UeventInfo, error) {
 			parts := strings.Split(strings.TrimPrefix(line, "PCI_ID="), ":")
 			if len(parts) == 2 {
 				vendorID = "0x" + strings.ToLower(parts[0])
-				deviceID = "0x" + strings.ToLower(parts[1])
 			}
 		case strings.HasPrefix(line, "PCI_SLOT_NAME="):
 			pciSlot = strings.TrimPrefix(line, "PCI_SLOT_NAME=")
@@ -80,7 +79,6 @@ func readUevent(cardPath string) (UeventInfo, error) {
 	return UeventInfo{
 		Driver:   driver,
 		VendorID: vendorID,
-		DeviceID: deviceID,
 		PCISlot:  pciSlot,
 	}, nil
 }

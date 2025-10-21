@@ -24,10 +24,8 @@ func DetectGPUs() ([]GPUInfo, error) {
 			Driver:      u.Driver,
 			Version:     driverVersion,
 			VendorID:    u.VendorID,
-			DeviceID:    u.DeviceID,
 			Outputs:     outputs,
 			DisplayInfo: strings.Join(displayModes, ", "),
-			Message:     "GL data unavailable for root.",
 		}
 		infos = append(infos, info)
 	}
