@@ -2,13 +2,14 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	"gobox/internal/hardware/battery"
 	"gobox/internal/hardware/gpu"
 	"gobox/internal/hardware/ram"
 )
 
-func ramPrint() {
+func printRamInfo() {
 	info, err := ram.GetMemoryInfo()
 	if err != nil {
 		fmt.Println("Erreur :", err)
@@ -54,7 +55,7 @@ func ramPrint() {
 		info.TotalMB, float64(info.TotalMB)/1024)
 }
 
-func batteryPrint() {
+func printBatteryInfo() {
 	info, err := battery.GetBatteryInfo()
 	if err != nil {
 		fmt.Println("Erreur:", err)
@@ -76,7 +77,30 @@ func batteryPrint() {
 	fmt.Printf("Capacité totale  : %.0f mAh\n", info.EnergyAH)
 }
 
+func printGPUInfo() {
+	gpus, err := gpu.DetectGPUs()
+	if err != nil {
+		log.Fatalf("Erreur de détection GPU : %v", err)
+	}
+
+	if len(gpus) == 0 {
+		fmt.Println("Aucune carte graphique détectée.")
+		return
+	}
+
+	for _, g := range gpus {
+		fmt.Println("─────────────────────────────────────────────")
+		fmt.Printf("Modèle          : %s\n", g.Model)
+		fmt.Printf("Vendor          : %s (%s)\n", g.Vendor, g.VendorID)
+		fmt.Printf("Driver          : %s\n", g.Driver)
+		fmt.Printf("Version         : %s\n", g.Version)
+		fmt.Printf("Device ID       : %s\n", g.DeviceID)
+		fmt.Printf("Sorties actives : %v\n", g.Outputs)
+		fmt.Printf("Modes affichage : %s\n", g.DisplayInfo)
+		fmt.Printf("Message         : %s\n", g.Message)
+	}
+	fmt.Println("─────────────────────────────────────────────")
+}
+
 func main() {
-	cards, err := gpu.FindGPUDevices()
-	fmt.Printf("Cards: %v\nError: %v\n", cards, err)
 }
