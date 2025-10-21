@@ -5,19 +5,6 @@ import (
 	"os"
 )
 
-type BatteryInfo struct {
-	Status       string
-	Manufacturer string
-	Model        string
-	Serial       string
-	Technology   string
-	Capacity     int
-	Cycle        int
-	EnergyAH     float64
-	VoltageNow   float64
-	EnergyFull   float64
-}
-
 func GetBatteryInfo() (BatteryInfo, error) {
 	path, err := findBatteryPath()
 	if err != nil {
