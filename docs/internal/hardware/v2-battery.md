@@ -125,31 +125,6 @@ type BatteryInfo struct {
 
 ---
 
-### 7. Diagramme ASCII des flux internes
-
-```
-                ┌──────────────┐
-                │ main()       │
-                └──────┬───────┘
-                       │
-          ┌────────────┴────────────┐
-          │ GetBatteryInfo()        │
-          ├─────────────────────────┤
-          │ path := findBatteryPath │
-          │ cap  := readInt(...)    │
-          │ stat := readString(...) │
-          │ volt := readFloat(...)  │
-          │ energy := readFloat(...)│
-          │ mAh := convertWattToAmp │
-          └────────────┬────────────┘
-                       │
-        ┌──────────────┴──────────────┐
-        │ return BatteryInfo struct   │
-        └─────────────────────────────┘
-```
-
----
-
 ### 9. Conclusion
 
 Le module `battery` est désormais :
