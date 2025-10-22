@@ -9,13 +9,12 @@ type UeventInfo struct {
 
 // GPUInfo représente les informations complètes d'une carte GPU détectée.
 type GPUInfo struct {
-	Model       string   // Modèle du GPU (ex: "AD106M [GeForce RTX 4070 Max-Q]")
-	Vendor      string   // Fabricant (ex: "NVIDIA Corporation")
-	Driver      string   // Driver noyau (ex: "nvidia", "i915")
-	Version     string   // Version du driver
-	VendorID    string   // ID hexadécimal du vendor (ex: "0x10de")
-	Outputs     []string // Connecteurs connectés (ex: ["HDMI-A-1", "eDP-1"])
-	DisplayInfo string   // Modes d'affichage concaténésj
+	Model    string   // Modèle du GPU (ex: "AD106M [GeForce RTX 4070 Max-Q]")
+	Vendor   string   // Fabricant (ex: "NVIDIA Corporation")
+	Driver   string   // Driver noyau (ex: "nvidia", "i915")
+	Version  string   // Version du driver
+	VendorID string   // ID hexadécimal du vendor (ex: "0x10de")
+	Outputs  []string // Connecteurs connectés (ex: ["HDMI-A-1", "eDP-1"])
 }
 
 // PCIDevice représente un périphérique PCI extrait de lspci.

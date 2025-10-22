@@ -31,26 +31,6 @@ func NewGPUReader(cardName string) *GPUReader {
 	}
 }
 
-// ReadDisplayModes retourne les modes d'affichage des sorties spécifiées.
-func (r *GPUReader) ReadDisplayModes(outputs []string) ([]string, error) {
-	modes := make([]string, 0, len(outputs)*2)
-
-	for _, out := range outputs {
-		path := filepath.Join(r.BasePath, r.CardName+"-"+out, "modes")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("lecture modes %q: %w", path, err)
-		}
-
-		for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
-			if line != "" {
-				modes = append(modes, line)
-			}
-		}
-	}
-	return modes, nil
-}
-
 // readDriverVersion retourne la version du driver pour le vendor spécifié.
 // Supporte nvidia, intel et amd (insensible à la casse).
 func readDriverVersion(vendor string) (string, error) {

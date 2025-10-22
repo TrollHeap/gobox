@@ -61,22 +61,12 @@ func detectSingleGPU(cardPath string) (GPUInfo, error) {
 		outputs = []string{}
 	}
 
-	var displayModes []string
-	if len(outputs) > 0 {
-		reader := NewGPUReader(cardPath)
-		displayModes, err = reader.ReadDisplayModes(outputs)
-		if err != nil {
-			displayModes = []string{}
-		}
-	}
-
 	return GPUInfo{
-		Model:       pciDevice.Model,
-		Vendor:      pciDevice.Vendor,
-		Driver:      uevent.Driver,
-		Version:     driverVersion,
-		VendorID:    uevent.VendorID,
-		Outputs:     outputs,
-		DisplayInfo: strings.Join(displayModes, ", "),
+		Model:    pciDevice.Model,
+		Vendor:   pciDevice.Vendor,
+		Driver:   uevent.Driver,
+		Version:  driverVersion,
+		VendorID: uevent.VendorID,
+		Outputs:  outputs,
 	}, nil
 }
