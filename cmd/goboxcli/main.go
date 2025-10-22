@@ -95,7 +95,6 @@ func printGPUInfo() {
 		fmt.Printf("Driver          : %s\n", g.Driver)
 		fmt.Printf("Version         : %s\n", g.Version)
 		fmt.Printf("Sorties actives : %v\n", g.Outputs)
-		fmt.Printf("Modes affichage : %s\n", g.DisplayInfo)
 	}
 	fmt.Println("─────────────────────────────────────────────")
 }
