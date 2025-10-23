@@ -1,109 +1,166 @@
-# TODO CPU infos
-##  Étape 1 — Définir les structures
+## 📚 Explication détaillée : Pourquoi `string` et pas `[]int`
 
-Dans `types.go`, Définir deux structures :
+### Analyse de tes fichiers système
 
-1. **`CPUCore`** : pour représenter un cœur logique.
-
-   * Contiendra les infos brutes extraites par bloc (`id`, `core_id`, `mhz`, `flags`, etc.)
-   * Pas besoin de tout remplir tout de suite, do it simple.
-
-2. **`CPUInfo`** : synthèse globale de la machine.
-
-   * C’est ce que `GetCPUInfo()` retournera.
-   * Mettre dedans : `Vendor`, `ModelName`, `Cores`, `Threads`, `FrequencyMHz`, `CacheL3KB`.
-
-> But : Pourvoir dire “équivalent structuré de `lscpu`”.
-
----
-
-## Étape 2 — Lire `/proc/cpuinfo`
-
-Dans `probe.go`, crée une fonction interne du type `parseProcCPUInfo()`.
-
-Ta mission :
-
-1. Lire le fichier avec `os.ReadFile`.
-2. Découper le texte en **blocs** séparés par des lignes vides (`\n\n`).
-3. Parcourir chaque bloc (chaque processeur logique).
-4. Pour chaque ligne :
-
-   * si elle commence par `"vendor_id"`, Noter e nom du constructeur.
-   * si c’est `"model name"`, Noter le modèle.
-   * si c’est `"cpu MHz"`, Additionner pour calculer une moyenne à la fin.
-   * si c’est `"cpu cores"`, Enregistrer la valeur (souvent répétée).
-   * si c’est `"physical id"`, garder dans un `map[string]bool` pour compter les sockets uniques.
-   * si c’est `"cache size"`, noter la taille une seule fois (en KB).
-
-> Objectif ici : remplir progressivement les variables pour former `CPUInfo`.
-
----
-
-## Étape 3 — Calculs de synthèse
-
-Une fois la boucle terminée :
-
-* la moyenne de fréquence = somme des `cpu MHz` / nombre de processeurs logiques.
-* le nombre de threads = nombre total de blocs `processor :`.
-* le nombre de sockets = taille du `map`.
-* le nombre de threads par cœur = `threads / cores`.
-
-Vérifications ces relations :
+Parfait, tu as des cas réels  :[1][2][3]
 
 ```
-threads >= cores
-threadsPerCore ≥ 1
+index3: "0-23"   ← L3 partagé entre 24 threads (12 cores × 2 SMT)
+index2: "0-1"    ← L2 partagé entre 2 threads (1 core × 2 SMT)
+index1: "0-1"    ← L1i partagé entre 2 threads
 ```
 
----
+***
 
-## Étape 4 — Retour du résultat
+## 🔴 Le problème fondamental : Les slices ne sont pas comparables
 
-Dans `detect.go`, écrire `GetCPUInfo()` qui :
+### Règle Go[4][5][6][7]
 
-* appeller `parseProcCPUInfo()`
-* renvoyer un `CPUInfo` complet
-* gerer les erreurs s’il n’y a pas de fichier ou si `/proc/cpuinfo` est vide.
+**Pour être clé de map, un type DOIT être "comparable"**, c'est-à-dire supporter les opérateurs `==` et `!=`.[5][6][4]
 
-Fonction pour appeler depuis CLI / TUI.
+**Types comparables**  :[8][6][4][5]
+- ✅ Types primitifs : `int`, `float64`, `string`, `bool`
+- ✅ Pointeurs : `*int`, `*CPUInfo`
+- ✅ Structs dont **tous les champs** sont comparables
+- ✅ Arrays : `[36]int` (taille fixe)
 
----
+**Types NON comparables**  :[9][10][11][5][8]
+- ❌ **Slices** : `[]int`, `[]string`
+- ❌ Maps : `map[string]int`
+- ❌ Functions : `func()`
 
-## Étape 5 — Test console rapide
+***
 
-Faire un petit `main.go` temporaire ou add un test rendu
+## 🧪 Démonstration pratique
+
+### Scénario A : Si tu utilisais `[]int` (ne compile PAS)
 
 ```go
-info, _ := cpu.GetCPUInfo()
-fmt.Printf("%+v\n", info)
+type CacheID struct {
+    Level      int
+    SharedCPUs []int  // ❌ slice = non comparable
+}
+
+func main() {
+    seen := make(map[CacheID]bool)  // ❌ ERREUR DE COMPILATION
+    // invalid map key type CacheID: Level contains []int which is not comparable
+}
 ```
 
-Obtenir un affichage brut des valeurs.
-Ensuite, formater
+
+**Raison technique**  :[12][13][5]
+
+Un slice contient **3 champs internes**  :[9][8]
+```go
+type slice struct {
+    array *[...]int  // pointeur vers backing array
+    len   int
+    cap   int
+}
+```
+
+**Comparer deux slices avec `==`** nécessiterait de décider  :[5][12]
+- Compare-t-on les **pointeurs** (identité) ?
+- Compare-t-on les **éléments** (égalité profonde) ?
+- Et si les slices ont des capacités différentes mais mêmes éléments ?
+
+Go refuse de choisir → **slices interdits comme clés**.[8][12][5]
+
+[13][12][5][9][8]
 
 ---
 
-## Étape 6 — Vérifications
+### Scénario B : Avec `string` (compile et fonctionne)
 
-Teste sur plusieurs systèmes (si tu peux) :
+```go
+type CacheID struct {
+    Level      int     // ✅ comparable
+    SharedCPUs string  // ✅ comparable
+}
 
-* Laptop Intel
-* Machine virtuelle
-* Serveur avec CPU AMD
-
-Compare la sortie avec `lscpu` pour vérifier la cohérence :
-
+func main() {
+    seen := make(map[CacheID]bool)  // ✅ OK
+    
+    id1 := CacheID{Level: 3, SharedCPUs: "0-23"}
+    id2 := CacheID{Level: 3, SharedCPUs: "0-23"}
+    
+    fmt.Println(id1 == id2)  // ✅ true (comparaison de struct)
+    
+    seen[id1] = true
+    _, exists := seen[id2]  // ✅ true (même clé)
+}
 ```
-lscpu | grep -E 'Model name|Socket|Thread|Core|MHz|Cache'
+
+
+**Pourquoi `string` fonctionne**  :[5][8]
+
+Les strings Go sont comparables **par valeur** (compare octet par octet)  :[8][5]
+```go
+"0-23" == "0-23"  // true
+"0-1"  == "0-23"  // false
 ```
 
-Trouver les mêmes valeurs, ±1 % pour les fréquences (elles fluctuent).
+
+***
+
+## 📊 Tableau comparatif : `string` vs `[]int`
+
+| Aspect | `SharedCPUs string` | `SharedCPUs []int` |
+|--------|---------------------|-------------------|
+| **Comparable** | ✅ Oui (`==` défini) | ❌ Non (slice) |
+| **Utilisable comme clé map** | ✅ Oui | ❌ Non (erreur compilation) |
+| **Simplicité** | ✅ Pas de parsing nécessaire | ❌ Nécessite parsing de "0-23" |
+| **Performance** | ✅ Comparaison directe | ❌ Nécessiterait boucle manuelle |
+| **Mémoire** | ~8-24 octets (header string) | ~24 octets (header slice) + array |
+
+[14][9][6][5][8]
+
+***
+
+## 🎯 Réponse en une phrase
+
+**"On utilise `string` pour `SharedCPUs` car les slices ne sont pas comparables donc interdites comme clés de map, alors que les strings supportent `==` et permettent une déduplication simple."**[12][6][14][5]
 
 ---
 
-## Étape 7 — Extensions possibles (plus tard)
+## 🔍 Bonus : Exemple concret de déduplication
 
-* Lire `/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq` pour obtenir la fréquence max.
-* Lire `/sys/class/thermal/thermal_zone*/temp` pour ajouter la température.
-* Ajouter une section “Vulnérabilités connues” depuis `/sys/devices/system/cpu/vulnerabilities`.
+```go
+type CacheID struct {
+    Level      int
+    SharedCPUs string
+}
 
+seen := make(map[CacheID]bool)
+
+// Premier passage : cpu0/cache/index3
+id1 := CacheID{Level: 3, SharedCPUs: "0-23"}
+if !seen[id1] {
+    seen[id1] = true
+    totalSize += parseSize("16M")  // ✅ Compte ce cache
+}
+
+// Deuxième passage : cpu1/cache/index3
+id2 := CacheID{Level: 3, SharedCPUs: "0-23"}  // ← MÊME string
+if !seen[id2] {  // ← false (déjà vu)
+    // ✅ Skip ce cache (déjà compté)
+}
+
+// Troisième passage : cpu2/cache/index2
+id3 := CacheID{Level: 2, SharedCPUs: "0-1"}  // ← Différent (niveau + CPUs)
+if !seen[id3] {
+    seen[id3] = true
+    totalSize += parseSize("512K")  // ✅ Compte ce cache
+}
+```
+
+
+***
+
+## ✅ Validation conceptuelle
+
+**Tu as maintenant compris pourquoi `string` est nécessaire ?**
+
+**Confirme en une phrase** : Pourquoi `[]int` ne peut pas être clé de map en Go ?[12][5]
+
+🔒 **Réponse attendue → passage à l'Étape Bonus 2 (lecture de `shared_cpu_list` et implémentation map).**
