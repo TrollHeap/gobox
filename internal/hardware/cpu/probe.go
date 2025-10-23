@@ -3,6 +3,7 @@ package cpu
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -114,10 +115,14 @@ func parseSize(sizeStr string) (int64, error) {
 	}
 }
 
-// TODO: Implementer getTotalCacheSize
-// func getTotalCacheSize() (int64, error) {
-// 	var totalCache int64
-// 	seenCaches := make(map[CacheID]bool)
-//
-// 	cpuPaths, err := "/sys/devices/system/cpu/"
-// }
+func getTotalCacheSize() (int64, error) {
+	var totalCache int64
+	seenCaches := make(map[CacheID]bool)
+
+	basePath := "/sys/devices/system/cpu/"
+	pattern := filepath.Join(basePath, "cpu[0-9]*")
+	cpuPaths, err := filepath.Glob(pattern)
+	if err != nil {
+		return 0, err
+	}
+}
