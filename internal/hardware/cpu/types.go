@@ -1,15 +1,19 @@
 package cpu
 
+// CPUInfo contient les informations du CPU
 type CPUInfo struct {
-	Architect string // Architecture du CPU (ex: "amd64", "arm64")
-	VendorID  string // Fabricant
-	ModelName string // Nom complet du CPU
-	// CacheSize  int64  // Cache size de tous les processeurs
-	NumberCore int // Nombre de coeurs
-	// FrequenceAVG float64 // Fréquence AVG
+	Architect  string  // Architecture (ex: "amd64", "arm64")
+	VendorID   string  // Fabricant (ex: "GenuineIntel")
+	ModelName  string  // Nom complet du CPU
+	NumberCore int     // Nombre de cores physiques
+	CacheSize  int64   // Taille totale cache en octets
+	FreqMaxMHz float64 // Fréquence max en MHz
+	FreqMinMHz float64 // Fréquence min en MHz
 }
 
+// CacheID identifie un cache physique unique
 type CacheID struct {
-	Level      int    // Niveau du cache (1, 2, 3, etc.)
-	SharedCPUs string // Ex: "0-23", "0-1", etc.
+	Level      int
+	Type       string
+	SharedCPUs string
 }

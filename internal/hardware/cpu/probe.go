@@ -9,30 +9,25 @@ import (
 	"strings"
 )
 
+// Constantes de chemins et clés
 const (
-	VendorIDKey  = "vendor_id"
-	ModelNameKey = "model name"
-	NumCoresKey  = "cpu cores"
-	// FreqMHzKey   = "cpu MHz" // NOTE: Voir si il y a toujours MHz sur les processeurs
+	VendorIDKey   = "vendor_id"
+	ModelNameKey  = "model name"
+	NumCoresKey   = "cpu cores"
+	pathCpuInfo   = "/proc/cpuinfo"
+	pathSystemCpu = "/sys/devices/system/cpu/"
 )
 
+// ParseCPUINFO parse les lignes de /proc/cpuinfo
 func ParseCPUINFO(lines []string) (*CPUInfo, error) {
 	info := &CPUInfo{}
 
-	// ✅ Appels AVANT la boucle (1 seule fois)
 	architect, err := getArchitect()
 	if err != nil {
-		return &CPUInfo{}, fmt.Errorf("Erreur architect: %w", err)
+		return nil, fmt.Errorf("lecture architecture: %w", err)
 	}
 	info.Architect = architect
 
-	// cacheSize, err := getTotalCacheSize()
-	// if err != nil {
-	// 	return &CPUInfo{}, fmt.Errorf("Erreur cache: %w", err)
-	// }
-	// info.CacheSize = cacheSize
-
-	// Boucle de parsing
 	for _, line := range lines {
 		key, value, found := strings.Cut(line, ":")
 		if !found {
@@ -44,7 +39,7 @@ func ParseCPUINFO(lines []string) (*CPUInfo, error) {
 
 		switch key {
 		case VendorIDKey:
-			if info.VendorID == "" { // ← Garde première occurrence
+			if info.VendorID == "" {
 				info.VendorID = value
 			}
 		case ModelNameKey:
@@ -54,7 +49,7 @@ func ParseCPUINFO(lines []string) (*CPUInfo, error) {
 		case NumCoresKey:
 			cores, err := strconv.Atoi(value)
 			if err != nil {
-				return &CPUInfo{}, fmt.Errorf("parsing cpu cores: %w", err)
+				return nil, fmt.Errorf("parsing cpu cores: %w", err)
 			}
 			info.NumberCore = cores
 		}
@@ -63,24 +58,21 @@ func ParseCPUINFO(lines []string) (*CPUInfo, error) {
 	return info, nil
 }
 
-func getArchitect() (string, error) {
-	return runtime.GOARCH, nil
-}
-
-func ReadPathProcCPUInfo() ([]string, error) {
-	path := "/proc/cpuinfo"
-
-	data, err := os.ReadFile(path)
+// readPathProcCPUInfo lit et filtre /proc/cpuinfo
+func readPathProcCPUInfo() ([]string, error) {
+	data, err := os.ReadFile(pathCpuInfo)
 	if err != nil {
-		return nil, fmt.Errorf("Problème de lecture du fichier %s: %w", path, err)
+		return nil, fmt.Errorf("lecture %s: %w", pathCpuInfo, err)
 	}
-	trimData := strings.TrimSpace(string(data))
 
+	trimData := strings.TrimSpace(string(data))
 	result := make([]string, 0, 50)
 
-	for line := range strings.SplitSeq(string(trimData), "\n") {
+	for line := range strings.SplitSeq(trimData, "\n") {
+		if line == "" {
+			continue
+		}
 		if strings.HasPrefix(line, ModelNameKey) ||
-			// strings.HasPrefix(line, FreqMHzKey) ||
 			strings.HasPrefix(line, NumCoresKey) ||
 			strings.HasPrefix(line, VendorIDKey) {
 			result = append(result, line)
@@ -90,39 +82,96 @@ func ReadPathProcCPUInfo() ([]string, error) {
 	return result, nil
 }
 
-func parseSize(sizeStr string) (int64, error) {
-	// sizeStr exemple : "32K", "256K", "8M"
-	sizeStr = strings.TrimSpace(sizeStr)
-	if len(sizeStr) == 0 {
-		return 0, fmt.Errorf("taille vide")
-	}
-	unit := sizeStr[len(sizeStr)-1]
-	valueStr := sizeStr[:len(sizeStr)-1]
-	value, err := strconv.ParseInt(valueStr, 10, 64)
-	if err != nil {
-		return 0, err
-	}
-	switch unit {
-	case 'K', 'k':
-		return value * 1024, nil
-	case 'M', 'm':
-		return value * 1024 * 1024, nil
-	case 'G', 'g':
-		return value * 1024 * 1024 * 1024, nil
-	default:
-		// pas d’unité, on retourne la valeur brute
-		return strconv.ParseInt(sizeStr, 10, 64)
-	}
+// getArchitect retourne l'architecture du CPU
+func getArchitect() (string, error) {
+	return runtime.GOARCH, nil
 }
 
-func getTotalCacheSize() (int64, error) {
-	var totalCache int64
-	seenCaches := make(map[CacheID]bool)
-
-	basePath := "/sys/devices/system/cpu/"
-	pattern := filepath.Join(basePath, "cpu[0-9]*")
-	cpuPaths, err := filepath.Glob(pattern)
+// readFreqKHz lit une fréquence en KHz depuis sysfs
+func readFreqKHz(path string) (int64, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return 0, err
+	}
+
+	freqStr := strings.TrimSpace(string(data))
+	return strconv.ParseInt(freqStr, 10, 64)
+}
+
+// getCPUFrequencies retourne les fréquences min et max du CPU
+func getCPUFrequencies() (minMHz, maxMHz float64, err error) {
+	basePath := filepath.Join(pathSystemCpu, "cpu0", "cpufreq")
+
+	// Fréquence max
+	maxFreqPath := filepath.Join(basePath, "cpuinfo_max_freq")
+	maxKHz, err := readFreqKHz(maxFreqPath)
+	if err != nil {
+		return 0, 0, fmt.Errorf("lecture freq max: %w", err)
+	}
+	maxMHz = float64(maxKHz) / 1000.0
+
+	// Fréquence min
+	minFreqPath := filepath.Join(basePath, "cpuinfo_min_freq")
+	minKHz, err := readFreqKHz(minFreqPath)
+	if err != nil {
+		return 0, 0, fmt.Errorf("lecture freq min: %w", err)
+	}
+	minMHz = float64(minKHz) / 1000.0
+
+	return minMHz, maxMHz, nil
+}
+
+// GetCPUInfo retourne les informations complètes du CPU
+func GetCPUInfo() (*CPUInfo, error) {
+	// Lire /proc/cpuinfo
+	lines, err := readPathProcCPUInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := ParseCPUINFO(lines)
+	if err != nil {
+		return nil, err
+	}
+
+	// Ajouter taille cache
+	cacheSize, err := getTotalCacheSize()
+	if err != nil {
+		return nil, fmt.Errorf("calcul cache: %w", err)
+	}
+	info.CacheSize = cacheSize
+
+	// TODO: Faire la moyenne avg fréquence
+	// Ajouter fréquences
+	minMHz, maxMHz, err := getCPUFrequencies()
+	if err != nil {
+		// Non-critique si cpufreq absent
+		fmt.Fprintf(os.Stderr, "Attention: impossible de lire les fréquences: %v\n", err)
+	} else {
+		info.FreqMinMHz = minMHz
+		info.FreqMaxMHz = maxMHz
+	}
+
+	return info, nil
+}
+
+// PrintMain affiche les informations CPU
+func PrintMain() {
+	info, err := GetCPUInfo()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Erreur: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Vendor ID:       %s\n", info.VendorID)
+	fmt.Printf("Model Name:      %s\n", info.ModelName)
+	fmt.Printf("Architecture:    %s\n", info.Architect)
+	fmt.Printf("CPU Cores:       %d\n", info.NumberCore)
+	fmt.Printf("Total Cache:     %d octets (%.2f MB)\n",
+		info.CacheSize, float64(info.CacheSize)/(1024*1024))
+
+	if info.FreqMaxMHz > 0 {
+		fmt.Printf("Freq Min:        %.0f MHz\n", info.FreqMinMHz)
+		fmt.Printf("Freq Max:        %.0f MHz\n", info.FreqMaxMHz)
 	}
 }
