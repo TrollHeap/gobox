@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
 
 	"gobox/internal/hardware/battery"
 	"gobox/internal/hardware/cpu"
@@ -102,15 +101,5 @@ func printGPUInfo() {
 }
 
 func main() {
-	cpuInfo, err := cpu.ReadPathProcCPUInfo()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Erreur: %v\n", err)
-		os.Exit(1)
-	}
-
-	for _, line := range cpuInfo {
-		fmt.Println(line)
-	}
-
-	// fmt.Printf("Taille totale des caches CPU : %d bytes\n", cacheSize)
+	cpu.PrintMain()
 }
