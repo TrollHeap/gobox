@@ -9,13 +9,32 @@ import (
 	"strings"
 )
 
+type UeventInfo struct {
+	Driver   string
+	VendorID string
+	DeviceID string
+	PCISlot  string
+}
+
+// PCIDevice représente un périphérique PCI extrait de lspci.
+type PCIDevice struct {
+	Vendor string
+	Model  string
+}
+
+// GPUReader lit les informations d'affichage d'une carte GPU.
+type GPUReader struct {
+	BasePath string
+	CardName string
+}
+
 const (
-	VendorNvidia Vendor = "nvidia"
-	VendorIntel  Vendor = "intel"
-	VendorAMD    Vendor = "amd"
+	VendorNvidia string = "nvidia"
+	VendorIntel  string = "intel"
+	VendorAMD    string = "amd"
 )
 
-var driverVersionPaths = map[Vendor]string{
+var driverVersionPaths = map[string]string{
 	VendorNvidia: "/proc/driver/nvidia/version",
 	VendorIntel:  "/sys/module/i915/version",
 	VendorAMD:    "/sys/module/amdgpu/version",
@@ -34,7 +53,7 @@ func NewGPUReader(cardName string) *GPUReader {
 // readDriverVersion retourne la version du driver pour le vendor spécifié.
 // Supporte nvidia, intel et amd (insensible à la casse).
 func readDriverVersion(vendor string) (string, error) {
-	v := Vendor(strings.ToLower(vendor))
+	v := strings.ToLower(vendor)
 
 	path, ok := driverVersionPaths[v]
 	if !ok {

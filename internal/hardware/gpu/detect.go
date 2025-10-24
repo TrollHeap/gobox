@@ -5,6 +5,17 @@ import (
 	"strings"
 )
 
+// HACK: REFACTOR ALL FILES IN GPU WITH FUNCTION HELPERS
+// GPUInfo représente les informations complètes d'une carte GPU détectée.
+type GPUInfo struct {
+	Model    string   // Modèle du GPU (ex: "AD106M [GeForce RTX 4070 Max-Q]")
+	Vendor   string   // Fabricant (ex: "NVIDIA Corporation")
+	Driver   string   // Driver noyau (ex: "nvidia", "i915")
+	Version  string   // Version du driver
+	VendorID string   // ID hexadécimal du vendor (ex: "0x10de")
+	Outputs  []string // Connecteurs connectés (ex: ["HDMI-A-1", "eDP-1"])
+}
+
 // DetectGPUs retourne les informations de toutes les cartes GPU du système.
 // Ignore les cartes individuelles en erreur et retourne les résultats partiels.
 func DetectGPUs() ([]GPUInfo, error) {
