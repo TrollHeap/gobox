@@ -3,6 +3,8 @@ package disk
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 // DiskInfo contient les informations d'un disque
@@ -14,47 +16,78 @@ type DiskInfo struct {
 	SizeBytes int64  // Taille totale en octets
 }
 
-type Disks struct {
-	Disk DiskInfo
-}
-
 const (
 	pathRoot = "/sys/block/"
 )
 
-func ListDisks() {
-	path, _ := os.ReadFile(pathRoot)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	for _, line := range path {
-		println(line)
+func ListDisks() ([]string, error) {
+	entries, err := os.ReadDir(pathRoot)
+	if err != nil {
+		return nil, fmt.Errorf("lecture %s: %w", pathRoot, err)
 	}
+
+	var diskNames []string
+
+	for _, entry := range entries {
+		// Ignorer fichiers (garder seulement répertoires)
+		if !entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+
+		// Filtrer périphériques virtuels
+		if strings.HasPrefix(name, "loop") ||
+			strings.HasPrefix(name, "zram") ||
+			strings.HasPrefix(name, "ram") {
+			continue
+		}
+
+		diskNames = append(diskNames, name)
+	}
+
+	return diskNames, nil
+}
+
+func ListPartitions(diskName string) ([]string, error) {
+	diskPath := filepath.Join(pathRoot, diskName)
+
+	entries, err := os.ReadDir(diskPath)
+	if err != nil {
+		return nil, fmt.Errorf("lecture %s: %w", diskPath, err)
+	}
+
+	var partitions []string
+
+	for _, entry := range entries {
+		// Garder seulement répertoires (partitions sont des sous-répertoires)
+		if !entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+
+		// Vérifier si c'est une partition du disque
+		if suffix, found := strings.CutPrefix(name, diskName); found {
+			if suffix != "" && (strings.HasPrefix(suffix, "p") ||
+				(len(suffix) > 0 && suffix[0] >= '0' && suffix[0] <= '9')) {
+				partitions = append(partitions, name)
+			}
+		}
+	}
+
+	return partitions, nil
 }
 
 func PrintDisk() {
 	fmt.Println("Disk Info:")
-	ListDisks()
+	fmt.Println(ListDisks())
+	fmt.Println("Partitions :")
+	DiskPartitions, _ := ListPartitions("nvme0n1")
+	fmt.Println(DiskPartitions)
 }
 
 // TODO:
-/*
-1. Lister /sys/block/* (tous les périphériques)
-2. Filtrer :
-   - Exclure loop* (loop devices)
-   - Exclure zram* (swap compressé)
-   - Exclure ram* (ramdisk)
-   - Garder seulement les disques physiques
-3. Pour chaque disque trouvé :
-   - Appeler GetDiskInfo(diskName)
-4. Retourner slice de DiskInfo
-**Exemple d'appel** :
- disks, err := ListDisks()
- disks = [nvme0n1, sda, sdb, ...]
- for _, disk := range disks {
-     fmt.Printf("%s: %d bytes\n", disk.Name, disk.SizeBytes)
- }
-*/
 
 /*
 Nom : readDisks
