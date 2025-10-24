@@ -1,8 +1,9 @@
 package battery
 
 import (
+	"errors"
 	"fmt"
-	"log"
+	"sync"
 
 	"gobox/internal/sysfs"
 	"gobox/internal/utils"
@@ -10,10 +11,10 @@ import (
 
 type BatteryInfo struct {
 	Status       string
-	Manufacturer string
-	Model        string
-	Serial       string
-	Technology   string
+	Manufacturer *string
+	Model        *string
+	Serial       *string
+	Technology   *string
 	Capacity     int
 	Cycle        int
 	EnergyAH     float64
@@ -21,13 +22,35 @@ type BatteryInfo struct {
 	EnergyFull   float64
 }
 
+var (
+	batteryPath string
+	once        sync.Once
+)
+
+func findBatteryPathCached() (string, error) {
+	var err error
+	once.Do(func() {
+		batteryPath, err = findBatteryPath()
+	})
+	if batteryPath == "" || err != nil {
+		return "", errors.New("battery path not found")
+	}
+	return batteryPath, nil
+}
+
+func strPtrIfNotEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
 func GetBatteryInfo() (BatteryInfo, error) {
-	path, err := findBatteryPath()
+	path, err := findBatteryPathCached()
 	if err != nil {
 		return BatteryInfo{}, err
 	}
 
-	// Champs critiques (obligatoires selon la spec Linux)
 	capacity, err := sysfs.ReadInt(path, "capacity")
 	if err != nil {
 		return BatteryInfo{}, fmt.Errorf("reading capacity: %w", err)
@@ -38,63 +61,27 @@ func GetBatteryInfo() (BatteryInfo, error) {
 		return BatteryInfo{}, fmt.Errorf("reading status: %w", err)
 	}
 
-	// Champs optionnels (peuvent être absents selon le matériel/driver)
-	manufacturer, err := sysfs.ReadString(path, "manufacturer")
-	if err != nil {
-		log.Printf("manufacturer unavailable: %v", err)
-		manufacturer = "N/A"
-	}
+	// Lecture des champs optionnels sans logger, uniquement gestion d'absence avec pointeur nil
+	manufacturer, _ := sysfs.ReadString(path, "manufacturer")
+	model, _ := sysfs.ReadString(path, "model_name")
+	serialNumber, _ := sysfs.ReadString(path, "serial_number")
+	technology, _ := sysfs.ReadString(path, "technology")
 
-	model, err := sysfs.ReadString(path, "model_name")
-	if err != nil {
-		log.Printf("model_name unavailable: %v", err)
-		model = "N/A"
-	}
+	cycle, _ := sysfs.ReadInt(path, "cycle_count")
 
-	serialNumber, err := sysfs.ReadString(path, "serial_number")
-	if err != nil {
-		log.Printf("serial_number unavailable: %v", err)
-		serialNumber = "N/A"
-	}
+	voltNow, _ := sysfs.ReadFloat(path, "voltage_now")
 
-	technology, err := sysfs.ReadString(path, "technology")
-	if err != nil {
-		log.Printf("technology unavailable: %v", err)
-		technology = "N/A"
-	}
+	energyFull, _ := sysfs.ReadFloat(path, "energy_full_design")
 
-	cycle, err := sysfs.ReadInt(path, "cycle_count")
-	if err != nil {
-		log.Printf("cycle_count unavailable: %v", err)
-		cycle = 0
-	}
-
-	voltNow, err := sysfs.ReadFloat(path, "voltage_now")
-	if err != nil {
-		log.Printf("voltage_now unavailable: %v", err)
-		voltNow = 0.0
-	}
-
-	// energy_full_design peut être absent (certains systèmes utilisent charge_full_design)
-	energyFull, err := sysfs.ReadFloat(path, "energy_full_design")
-	if err != nil {
-		log.Printf("energy_full_design unavailable: %v", err)
-		energyFull = 0.0
-	}
-
-	// energyAH dépend de energyFull et voltNow, donc peut aussi échouer
-	energyAH, err := utils.ConvertWattToAmpere(path, energyFull)
-	if err != nil {
-		log.Printf("energy amperes calculation failed: %v", err)
-		energyAH = 0.0
-	}
+	// Conversion avec gestion d'erreur silencieuse
+	energyAH, _ := utils.ConvertWattToAmpere(path, energyFull)
 
 	return BatteryInfo{
 		Status:       status,
-		Manufacturer: manufacturer,
-		Model:        model,
-		Serial:       serialNumber,
-		Technology:   technology,
+		Manufacturer: strPtrIfNotEmpty(manufacturer),
+		Model:        strPtrIfNotEmpty(model),
+		Serial:       strPtrIfNotEmpty(serialNumber),
+		Technology:   strPtrIfNotEmpty(technology),
 		Capacity:     capacity,
 		Cycle:        cycle,
 		EnergyAH:     energyAH,
