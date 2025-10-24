@@ -8,11 +8,22 @@ import (
 	"strings"
 )
 
-// readFile lit et nettoie un fichier sysfs
 func readFile(basePath, filename string) (string, error) {
 	data, err := os.ReadFile(filepath.Join(basePath, filename))
 	if err != nil {
 		return "", fmt.Errorf("reading %s: %w", filename, err)
+	}
+	return strings.TrimSpace(string(data)), nil
+}
+
+func ReadFileOptional(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		// Ne PAS retourner l'erreur si fichier absent
+		if os.IsNotExist(err) {
+			return "", nil // Pas d'erreur, juste vide
+		}
+		return "", err // Autre erreur (permissions, etc.)
 	}
 	return strings.TrimSpace(string(data)), nil
 }
