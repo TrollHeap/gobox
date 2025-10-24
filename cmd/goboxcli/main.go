@@ -1,9 +1,10 @@
 package main
 
-import (
-	"gobox/internal/print"
-)
+import "gobox/internal/hardware/disk"
+
+//"gobox/internal/print"
 
 func main() {
-	print.CPUInfo()
+	// print.CPUInfo()
+	disk.PrintDisk()
 }

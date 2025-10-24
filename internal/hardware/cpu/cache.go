@@ -15,98 +15,85 @@ type CacheID struct {
 	SharedCPUs string
 }
 
-// readLevel lit le niveau de cache depuis index*/level
-func readLevel(index string) (int, error) {
-	levelPath := filepath.Join(index, "level")
-	levelBytes, err := os.ReadFile(levelPath)
-	if err != nil {
-		return 0, err
-	}
-
-	levelStr := strings.TrimSpace(string(levelBytes))
-	return strconv.Atoi(levelStr)
-}
-
-// readType lit le type de cache depuis index*/type
-func readType(index string) (string, error) {
-	typePath := filepath.Join(index, "type")
-	typeBytes, err := os.ReadFile(typePath)
+// readFile lit un fichier et retourne son contenu nettoyé
+func readFile(path string) (string, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(string(typeBytes)), nil
+	return strings.TrimSpace(string(data)), nil
+}
+
+// readLevel lit le niveau de cache
+func readLevel(index string) (int, error) {
+	content, err := readFile(filepath.Join(index, "level"))
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(content)
+}
+
+// readType lit le type de cache
+func readType(index string) (string, error) {
+	return readFile(filepath.Join(index, "type"))
 }
 
 // readSharedCPU lit la liste des CPUs partageant ce cache
 func readSharedCPU(index string) (string, error) {
-	sharedPath := filepath.Join(index, "shared_cpu_list")
-	sharedBytes, err := os.ReadFile(sharedPath)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(sharedBytes)), nil
+	return readFile(filepath.Join(index, "shared_cpu_list"))
 }
 
 // readSize lit et parse la taille du cache
 func readSize(index string) (int64, error) {
-	sizePath := filepath.Join(index, "size")
-	sizeBytes, err := os.ReadFile(sizePath)
+	sizeStr, err := readFile(filepath.Join(index, "size"))
 	if err != nil {
 		return 0, err
 	}
-
-	sizeStr := strings.TrimSpace(string(sizeBytes))
 	return parseSize(sizeStr)
 }
 
 // parseSize convertit "64K" → 65536 octets
 func parseSize(sizeStr string) (int64, error) {
-	sizeStr = strings.TrimSpace(sizeStr)
-	if len(sizeStr) == 0 {
+	if sizeStr == "" {
 		return 0, fmt.Errorf("taille vide")
 	}
 
-	unit := sizeStr[len(sizeStr)-1]
+	lastChar := sizeStr[len(sizeStr)-1]
 
-	// Cas sans unité (tous chiffres)
-	if unit >= '0' && unit <= '9' {
+	// Cas sans unité
+	if lastChar >= '0' && lastChar <= '9' {
 		return strconv.ParseInt(sizeStr, 10, 64)
 	}
 
-	// Parser la valeur numérique
-	valueStr := sizeStr[:len(sizeStr)-1]
-	value, err := strconv.ParseInt(valueStr, 10, 64)
+	value, err := strconv.ParseInt(sizeStr[:len(sizeStr)-1], 10, 64)
 	if err != nil {
 		return 0, err
 	}
 
-	// Appliquer le multiplicateur
-	switch unit {
+	switch lastChar {
 	case 'K', 'k':
-		return value * 1024, nil
+		return value << 10, nil // *1024
 	case 'M', 'm':
-		return value * 1024 * 1024, nil
+		return value << 20, nil // *1024*1024
 	case 'G', 'g':
-		return value * 1024 * 1024 * 1024, nil
+		return value << 30, nil // *1024*1024*1024
 	default:
-		return 0, fmt.Errorf("unité inconnue: %c", unit)
+		return 0, fmt.Errorf("unité inconnue: %c", lastChar)
 	}
 }
 
 // getTotalCacheSize calcule la taille totale des caches avec déduplication
 func getTotalCacheSize() (int64, error) {
 	var totalCache int64
-	seenCaches := make(map[CacheID]bool)
+	seenCaches := make(map[CacheID]struct{}) // struct{} au lieu de bool
 
-	pattern := filepath.Join(pathSystemCpu, "cpu[0-9]*")
-	cpuPaths, err := filepath.Glob(pattern)
+	cpuPaths, err := filepath.Glob(filepath.Join(pathSystemCpu, "cpu[0-9]*"))
 	if err != nil {
 		return 0, fmt.Errorf("glob CPUs: %w", err)
 	}
 
 	for _, cpu := range cpuPaths {
-		cachePath := filepath.Join(cpu, "cache")
-		indexPaths, err := filepath.Glob(filepath.Join(cachePath, "index*"))
+		indexPaths, err := filepath.Glob(filepath.Join(cpu, "cache", "index*"))
 		if err != nil {
 			continue
 		}
@@ -122,7 +109,7 @@ func getTotalCacheSize() (int64, error) {
 				continue
 			}
 
-			sharedCPUList, err := readSharedCPU(index)
+			sharedCPU, err := readSharedCPU(index)
 			if err != nil {
 				continue
 			}
@@ -130,10 +117,10 @@ func getTotalCacheSize() (int64, error) {
 			cacheID := CacheID{
 				Level:      level,
 				Type:       cacheType,
-				SharedCPUs: sharedCPUList,
+				SharedCPUs: sharedCPU,
 			}
 
-			if seenCaches[cacheID] {
+			if _, seen := seenCaches[cacheID]; seen {
 				continue
 			}
 
@@ -143,7 +130,7 @@ func getTotalCacheSize() (int64, error) {
 			}
 
 			totalCache += size
-			seenCaches[cacheID] = true
+			seenCaches[cacheID] = struct{}{}
 		}
 	}
 

@@ -1,6 +1,7 @@
 package cpu
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,33 +12,28 @@ import (
 
 // CPUInfo contient les informations du CPU
 type CPUInfo struct {
-	Architect  string  // Architecture (ex: "amd64", "arm64")
-	VendorID   string  // Fabricant (ex: "GenuineIntel")
-	ModelName  string  // Nom complet du CPU
-	NumberCore int     // Nombre de cores physiques
-	CacheSize  int64   // Taille totale cache en octets
-	FreqMaxMHz float64 // Fréquence max en MHz
-	FreqMinMHz float64 // Fréquence min en MHz
+	Architect  string
+	VendorID   string
+	ModelName  string
+	NumberCore int
+	CacheSize  int64
+	FreqMaxMHz float64
+	FreqMinMHz float64
 }
 
-// Constantes de chemins et clés
 const (
-	VendorIDKey   = "vendor_id"
-	ModelNameKey  = "model name"
-	NumCoresKey   = "cpu cores"
+	vendorIDKey   = "vendor_id"
+	modelNameKey  = "model name"
+	numCoresKey   = "cpu cores"
 	pathCpuInfo   = "/proc/cpuinfo"
 	pathSystemCpu = "/sys/devices/system/cpu/"
 )
 
-// ParseCPUINFO parse les lignes de /proc/cpuinfo
-func ParseCPUINFO(lines []string) (*CPUInfo, error) {
-	info := &CPUInfo{}
-
-	architect, err := getArchitect()
-	if err != nil {
-		return nil, fmt.Errorf("lecture architecture: %w", err)
+// parseCPUInfo parse les lignes de /proc/cpuinfo
+func parseCPUInfo(lines []string) CPUInfo {
+	info := CPUInfo{
+		Architect: runtime.GOARCH, // Pas besoin de fonction séparée
 	}
-	info.Architect = architect
 
 	for _, line := range lines {
 		key, value, found := strings.Cut(line, ":")
@@ -49,53 +45,55 @@ func ParseCPUINFO(lines []string) (*CPUInfo, error) {
 		value = strings.TrimSpace(value)
 
 		switch key {
-		case VendorIDKey:
+		case vendorIDKey:
 			if info.VendorID == "" {
 				info.VendorID = value
 			}
-		case ModelNameKey:
+		case modelNameKey:
 			if info.ModelName == "" {
 				info.ModelName = value
 			}
-		case NumCoresKey:
-			cores, err := strconv.Atoi(value)
-			if err != nil {
-				return nil, fmt.Errorf("parsing cpu cores: %w", err)
+		case numCoresKey:
+			if cores, err := strconv.Atoi(value); err == nil {
+				info.NumberCore = cores
 			}
-			info.NumberCore = cores
 		}
 	}
 
-	return info, nil
+	return info
 }
 
-// readPathProcCPUInfo lit et filtre /proc/cpuinfo
-func readPathProcCPUInfo() ([]string, error) {
-	data, err := os.ReadFile(pathCpuInfo)
+// readCPUInfo lit et filtre /proc/cpuinfo avec lecture bufférisée
+func readCPUInfo() ([]string, error) {
+	file, err := os.Open(pathCpuInfo)
 	if err != nil {
-		return nil, fmt.Errorf("lecture %s: %w", pathCpuInfo, err)
+		return nil, fmt.Errorf("ouverture %s: %w", pathCpuInfo, err)
 	}
+	defer file.Close()
 
-	trimData := strings.TrimSpace(string(data))
-	result := make([]string, 0, 50)
+	result := make([]string, 0, 32)
+	scanner := bufio.NewScanner(file)
 
-	for line := range strings.SplitSeq(trimData, "\n") {
+	for scanner.Scan() {
+		line := scanner.Text()
 		if line == "" {
 			continue
 		}
-		if strings.HasPrefix(line, ModelNameKey) ||
-			strings.HasPrefix(line, NumCoresKey) ||
-			strings.HasPrefix(line, VendorIDKey) {
-			result = append(result, line)
+		// Optimisation : vérifier le préfixe avant de faire strings.HasPrefix complet
+		if len(line) > 0 && (line[0] == 'm' || line[0] == 'c' || line[0] == 'v') {
+			if strings.HasPrefix(line, modelNameKey) ||
+				strings.HasPrefix(line, numCoresKey) ||
+				strings.HasPrefix(line, vendorIDKey) {
+				result = append(result, line)
+			}
 		}
 	}
 
-	return result, nil
-}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("lecture %s: %w", pathCpuInfo, err)
+	}
 
-// getArchitect retourne l'architecture du CPU
-func getArchitect() (string, error) {
-	return runtime.GOARCH, nil
+	return result, nil
 }
 
 // readFreqKHz lit une fréquence en KHz depuis sysfs
@@ -113,55 +111,40 @@ func readFreqKHz(path string) (int64, error) {
 func getCPUFrequencies() (minMHz, maxMHz float64, err error) {
 	basePath := filepath.Join(pathSystemCpu, "cpu0", "cpufreq")
 
-	// Fréquence max
-	maxFreqPath := filepath.Join(basePath, "cpuinfo_max_freq")
-	maxKHz, err := readFreqKHz(maxFreqPath)
+	maxKHz, err := readFreqKHz(filepath.Join(basePath, "cpuinfo_max_freq"))
 	if err != nil {
-		return 0, 0, fmt.Errorf("lecture freq max: %w", err)
+		return 0, 0, fmt.Errorf("freq max: %w", err)
 	}
-	maxMHz = float64(maxKHz) / 1000.0
 
-	// Fréquence min
-	minFreqPath := filepath.Join(basePath, "cpuinfo_min_freq")
-	minKHz, err := readFreqKHz(minFreqPath)
+	minKHz, err := readFreqKHz(filepath.Join(basePath, "cpuinfo_min_freq"))
 	if err != nil {
-		return 0, 0, fmt.Errorf("lecture freq min: %w", err)
+		return 0, 0, fmt.Errorf("freq min: %w", err)
 	}
-	minMHz = float64(minKHz) / 1000.0
 
-	return minMHz, maxMHz, nil
+	// Optimisation : division unique au lieu de deux constantes .0
+	const khzToMhz = 1000.0
+	return float64(minKHz) / khzToMhz, float64(maxKHz) / khzToMhz, nil
 }
 
 // GetCPUInfo retourne les informations complètes du CPU
-func GetCPUInfo() (*CPUInfo, error) {
-	// Lire /proc/cpuinfo
-	lines, err := readPathProcCPUInfo()
+func GetCPUInfo() (CPUInfo, error) {
+	lines, err := readCPUInfo()
 	if err != nil {
-		return nil, err
+		return CPUInfo{}, err
 	}
 
-	info, err := ParseCPUINFO(lines)
-	if err != nil {
-		return nil, err
-	}
+	info := parseCPUInfo(lines)
 
-	// Ajouter taille cache
 	cacheSize, err := getTotalCacheSize()
 	if err != nil {
-		return nil, fmt.Errorf("calcul cache: %w", err)
+		return CPUInfo{}, fmt.Errorf("calcul cache: %w", err)
 	}
 	info.CacheSize = cacheSize
 
-	// TODO: Faire la moyenne avg fréquence
-	// Ajouter fréquences
-	minMHz, maxMHz, err := getCPUFrequencies()
-	if err != nil {
-		// Non-critique si cpufreq absent
-		fmt.Fprintf(os.Stderr, "Attention: impossible de lire les fréquences: %v\n", err)
-	} else {
-		info.FreqMinMHz = minMHz
-		info.FreqMaxMHz = maxMHz
-	}
+	// Fréquences optionnelles - ne pas échouer si absentes
+	minMHz, maxMHz, _ := getCPUFrequencies()
+	info.FreqMinMHz = minMHz
+	info.FreqMaxMHz = maxMHz
 
 	return info, nil
 }
