@@ -8,6 +8,13 @@ import (
 	"strings"
 )
 
+// CacheID identifie un cache physique unique
+type CacheID struct {
+	Level      int
+	Type       string
+	SharedCPUs string
+}
+
 // readLevel lit le niveau de cache depuis index*/level
 func readLevel(index string) (int, error) {
 	levelPath := filepath.Join(index, "level")
