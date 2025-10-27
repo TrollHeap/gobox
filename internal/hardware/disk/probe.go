@@ -2,23 +2,67 @@ package disk
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
 // DiskInfo contient les informations d'un disque
 type DiskInfo struct {
-	Name      string // Nom du périphérique (ex: "sda", "nvme0n1")
-	Vendor    string // Fabricant (ex: "Samsung", peut être vide)
-	Model     string // Modèle (ex: "860 EVO", peut être vide)
-	Type      string // Type de disque : "SSD" ou "HDD"
-	SizeBytes int64  // Taille totale en octets
+	Name       string   // Nom du périphérique (ex: "sda", "nvme0n1")
+	Vendor     string   // Fabricant (ex: "Samsung", peut être vide)
+	Model      string   // Modèle (ex: "860 EVO", peut être vide)
+	Type       string   // Type de disque : "SSD" ou "HDD"
+	SizeBytes  int64    // Taille totale en octets
+	Partitions []string // Liste des partitions (ex: ["nvme0n1p1", "nvme0n1p2"])
 }
 
 const (
-	pathRoot = "/sys/block/"
+	pathRoot        = "/sys/block/"
+	sectorSizeBytes = 512
 )
+
+func GetDiskInfo(diskName string) (*DiskInfo, error) {
+	if err := validateDiskName(diskName); err != nil {
+		return nil, err
+	}
+	info := &DiskInfo{
+		Name: diskName,
+	}
+	size, err := readDiskSize(diskName)
+	if err != nil {
+		return nil, fmt.Errorf("erreur lecture taille disque %s: %w", diskName, err)
+	}
+
+	info.SizeBytes = size // 2. Lire taille
+
+	diskType, err := readDiskType(diskName)
+	if err != nil {
+		return nil, fmt.Errorf("erreur lecture type disque %s: %w", diskName, err)
+	}
+
+	info.Type = diskType // 3. Lire type
+	vendor, model, err := readModelAndVendor(diskName)
+	if err != nil {
+		log.Printf("Warning: impossible de lire vendor/model du disque %s : %v", diskName, err)
+		vendor, model = "", ""
+	}
+
+	info.Vendor = vendor // 4. Lire vendor
+	info.Model = model   // 5. Lire modèle
+
+	// Ajouter les partitions
+	partitions, err := listPartitions(diskName)
+	if err != nil {
+		log.Printf("Warning: impossible de lire partitions du disque %s : %v", diskName, err)
+		partitions = []string{} // Liste vide si erreur
+	}
+	info.Partitions = partitions
+
+	return info, nil
+}
 
 func ListDisks() ([]string, error) {
 	entries, err := os.ReadDir(pathRoot)
@@ -26,30 +70,36 @@ func ListDisks() ([]string, error) {
 		return nil, fmt.Errorf("lecture %s: %w", pathRoot, err)
 	}
 
-	var diskNames []string
+	diskNames := make([]string, 0, len(entries))
 
 	for _, entry := range entries {
-		// Ignorer fichiers (garder seulement répertoires)
-		if !entry.IsDir() {
-			continue
-		}
-
 		name := entry.Name()
 
-		// Filtrer périphériques virtuels
+		// Filtrer périphériques virtuels en premier (plus rapide)
 		if strings.HasPrefix(name, "loop") ||
 			strings.HasPrefix(name, "zram") ||
 			strings.HasPrefix(name, "ram") {
 			continue
 		}
 
-		diskNames = append(diskNames, name)
+		// Vérifier si c'est un symlink pointant vers un répertoire
+		if entry.Type()&os.ModeSymlink != 0 {
+			fullPath := filepath.Join(pathRoot, name)
+			info, err := os.Stat(fullPath)
+			if err != nil || !info.IsDir() {
+				continue
+			}
+			diskNames = append(diskNames, name)
+		} else if entry.IsDir() {
+			// Cas où ce serait un répertoire direct (rare dans /sys/block/)
+			diskNames = append(diskNames, name)
+		}
 	}
 
 	return diskNames, nil
 }
 
-func ListPartitions(diskName string) ([]string, error) {
+func listPartitions(diskName string) ([]string, error) {
 	diskPath := filepath.Join(pathRoot, diskName)
 
 	entries, err := os.ReadDir(diskPath)
@@ -57,7 +107,7 @@ func ListPartitions(diskName string) ([]string, error) {
 		return nil, fmt.Errorf("lecture %s: %w", diskPath, err)
 	}
 
-	var partitions []string
+	partitions := make([]string, 0, 4)
 
 	for _, entry := range entries {
 		// Garder seulement répertoires (partitions sont des sous-répertoires)
@@ -79,163 +129,78 @@ func ListPartitions(diskName string) ([]string, error) {
 	return partitions, nil
 }
 
-func PrintDisk() {
-	fmt.Println("Disk Info:")
-	fmt.Println(ListDisks())
-	fmt.Println("Partitions :")
-	DiskPartitions, _ := ListPartitions("nvme0n1")
-	fmt.Println(DiskPartitions)
+func validateDiskName(diskName string) error {
+	if strings.Contains(diskName, "..") || strings.Contains(diskName, "/") {
+		return fmt.Errorf("nom de disque invalide : %s", diskName)
+	}
+	if diskName == "" {
+		return fmt.Errorf("nom de disque vide")
+	}
+	return nil
 }
 
-// TODO:
+func readDiskSize(diskName string) (int64, error) {
+	path := filepath.Join(pathRoot, diskName, "size")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, fmt.Errorf("lecture %s: %w", path, err)
+	}
 
-/*
-Nom : readDisks
-path : /sys/block/nvme0n1/device/model
-Entrée : nom du disque (string)
-Sortie : taille en octets (int64), erreur (error)
-=======================
-cat /sys/block/nvme0n1/size
-=====> 2000409264
-Étapes :
-  1. Construire chemin vers /sys/block/{disk}/size
-  2. Lire fichier
-  3. TrimSpace
-  4. Convertir string → int64 (secteurs)
-  5. Multiplier par 512 → octets
-  6. Return
-  Exemple : SKHynix_HFS001TEJ9X115N
+	dataStr := strings.TrimSpace(string(data))
+	dataInt, err := strconv.ParseInt(dataStr, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("conversion taille disque %s: %w", diskName, err)
+	}
 
-*/
-
-/*
-Nom : readModelAndVendor
-DiskInfo.Vendor
-DiskInfo.Model
-path : /sys/block/nvme0n1/device/model
-Entrée : nom du disque (string)
-Sortie : taille en octets (int64), erreur (error)
-=======================
-cat /sys/block/nvme0n1/size
-=====> 2000409264
-Étapes :
-  1. Construire chemin vers /sys/block/{disk}/size
-  2. Lire fichier
-  3. TrimSpace
-  4. Convertir string → int64 (secteurs)
-  5. Multiplier par 512 → octets
-  6. Return
-  Exemple : SKHynix_HFS001TEJ9X115N
-
-*/
-
-/*
-Nom : readDiskSize
-DiskInfo.SizeBytes
-path : /sys/block/nvme0n1/size
-Entrée : nom du disque (string)
-Sortie : taille en octets (int64), erreur (error)
-=======================
-cat /sys/block/nvme0n1/size
-=====> 2000409264
-Étapes :
-  1. Construire chemin vers /sys/block/{disk}/size
-  2. Lire fichier
-  3. TrimSpace
-  4. Convertir string → int64 (secteurs)
-  5. Multiplier par 512 → octets
-  6. Return
-
-*/
-
-/*
-Nom : readDiskType
-DiskInfo.Type
-path: /sys/block/nvme0n1/queue/rotational
-Entrée : nom du disque (string)
-Sortie : type (string "SSD" ou "HDD"), erreur (error)
-Étapes :
-  1. Construire chemin vers /sys/block/{disk}/queue/rotational
-  2. Lire fichier
-  3. TrimSpace
-  4. Condition : si "0" → "SSD", si "1" → "HDD"
-  5. Return
-Règle :
-    0 → SSD
-    1 → HDD
-*/
-
-/*
-func GetDiskInfo(diskName string) (*DiskInfo, error) {
-		// 1. Créer struct vide
-
-		// 2. Remplir champ Name (facile, c'est l'argument)
-
-		// 3. Lire Vendor (appeler fonction helper)
-		// Condition : si erreur, mettre "" (optionnel)
-
-		// 4. Lire Model (appeler fonction helper)
-		// Condition : si erreur, mettre ""
-
-		// 5. Lire Type (appeler fonction helper)
-		// Condition : si erreur, ??? (obligatoire ou optionnel ?)
-
-		//6. Lire Size (appeler fonction helper)
-		//Condition : si erreur, ??? (obligatoire !)
-
-		//7. Return struct complétée
-}
-info, err := GetDiskInfo("nvme0n1")
-info contient Name, Vendor, Model, Type, Size
-
-*/
-
-/*
-#### Étape 1 : Glob `/sys/block/*`
-
-Fonction : filepath.Glob
-Pattern : "/sys/block/*"
-Résultat : []string{
-    "/sys/block/loop0",
-    "/sys/block/nvme0n1",
-    "/sys/block/sda",
-    "/sys/block/zram0",
+	sizeBytes := dataInt * sectorSizeBytes
+	return sizeBytes, nil
 }
 
-#### Étape 2 : Filtrer les noms
+func readDiskType(diskName string) (string, error) {
+	path := filepath.Join(pathRoot, diskName, "queue", "rotational")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("lecteur %s : %w", path, err)
+	}
+	dataStr := strings.TrimSpace(string(data))
+	typeDIsk := "HDD"
+	if dataStr == "0" {
+		typeDIsk = "SSD"
+	}
+	return typeDIsk, nil
+}
 
-**Condition pour garder**  :[3][2]
+func readModelAndVendor(diskName string) (string, string, error) {
+	// Chemins potentiels
+	vendorPath := filepath.Join(pathRoot, diskName, "device", "vendor")
+	modelPath := filepath.Join(pathRoot, diskName, "device", "model")
 
-```
-Garder si :
-  - Nom ne commence PAS par "loop"
-  - Nom ne commence PAS par "zram"
-  - Nom ne commence PAS par "ram"
-  - (Optionnel) Nom ne contient PAS un chiffre AVANT une lettre
-    (exclut partitions comme "nvme0n1p1")
-```
+	// Lecture vendor (optionnel)
+	vendor := ""
+	if data, err := os.ReadFile(vendorPath); err == nil {
+		vendor = strings.TrimSpace(string(data))
+	} else if !os.IsNotExist(err) {
+		// Si erreur autre que fichier absent, renvoyer erreur
+		return "", "", fmt.Errorf("lecture vendor %s: %w", vendorPath, err)
+	}
 
-**Exemple de filtrage** :
-```
-/sys/block/loop0     → SKIP (loop device)
-/sys/block/nvme0n1   → KEEP (disque physique)
-/sys/block/nvme0n1p1 → N'existe PAS dans /sys/block (partitions ailleurs)
-/sys/block/sda       → KEEP
-/sys/block/zram0     → SKIP (swap)
-```
+	// Lecture modèle (obligatoire)
+	modelData, err := os.ReadFile(modelPath)
+	if err != nil {
+		return "", "", fmt.Errorf("lecture model %s: %w", modelPath, err)
+	}
+	modelStr := strings.TrimSpace(string(modelData))
 
-**Structure sysfs**  :[3][2]
+	// Si vendor vide, tenter d'extraire vendor + modèle à partir de modelStr
+	if vendor == "" {
+		parts := strings.SplitN(modelStr, "_", 2)
+		if len(parts) == 2 {
+			vendor, modelStr = parts[0], parts[1]
+		} else {
+			// Pas de séparation possible, vendor vide, modèle complet
+			vendor = ""
+		}
+	}
 
-```
-/sys/block/
-├── nvme0n1/           ← DISQUE (tu le vois)
-│   ├── nvme0n1p1/     ← PARTITION (subdirectory)
-│   ├── nvme0n1p2/
-│   ├── nvme0n1p3/
-│   └── nvme0n1p4/
-├── sda/               ← DISQUE
-│   ├── sda1/          ← PARTITION
-│   └── sda2/
-└── zram0/
-```
-*/
+	return vendor, modelStr, nil
+}
