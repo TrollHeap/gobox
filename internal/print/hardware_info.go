@@ -3,13 +3,13 @@ package print
 import (
 	"fmt"
 	"log"
-	"os"
 	"strings"
 
 	"gobox/internal/hardware/battery"
 	"gobox/internal/hardware/cpu"
 	"gobox/internal/hardware/disk"
 	"gobox/internal/hardware/gpu"
+	"gobox/internal/hardware/network"
 	"gobox/internal/hardware/ram"
 )
 
@@ -26,10 +26,20 @@ func BatteryInfo() {
 	}
 
 	fmt.Printf("Batterie         : %d%% (%s)\n", info.Capacity, info.Status)
-	fmt.Printf("Fabricant        : %s\n", info.Manufacturer)
-	fmt.Printf("Modèle           : %s\n", info.Model)
-	fmt.Printf("Numéro série     : %s\n", info.Serial)
-	fmt.Printf("Technologie      : %s\n", info.Technology)
+
+	if info.Manufacturer != nil {
+		fmt.Printf("Fabricant        : %s\n", *info.Manufacturer)
+	}
+	if info.Model != nil {
+		fmt.Printf("Modèle           : %s\n", *info.Model)
+	}
+	if info.Serial != nil {
+		fmt.Printf("Numéro série     : %s\n", *info.Serial)
+	}
+	if info.Technology != nil {
+		fmt.Printf("Technologie      : %s\n", *info.Technology)
+	}
+
 	fmt.Printf("Cycles           : %d\n", info.Cycle)
 	fmt.Printf("Tension actuelle : %.2f V\n", info.VoltageNow/1_000_000)
 	fmt.Printf("Capacité totale  : %.0f mAh\n", info.EnergyAH)
@@ -84,7 +94,8 @@ func RamInfo() {
 func GPUInfo() {
 	gpus, err := gpu.DetectGPUs()
 	if err != nil {
-		log.Fatalf("Erreur de détection GPU : %v", err)
+		fmt.Printf("Erreur de détection GPU : %v\n", err)
+		return
 	}
 
 	if len(gpus) == 0 {
@@ -106,8 +117,8 @@ func GPUInfo() {
 func CPUInfo() {
 	info, err := cpu.GetCPUInfo()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Erreur: %v\n", err)
-		os.Exit(1)
+		fmt.Printf("Erreur: %v\n", err)
+		return
 	}
 
 	fmt.Printf("Vendor ID:       %s\n", info.VendorID)
@@ -126,7 +137,8 @@ func CPUInfo() {
 func DiskInfo() {
 	disks, err := disk.ListDisks()
 	if err != nil {
-		log.Fatalf("Erreur listage disques : %v", err)
+		fmt.Printf("Erreur listage disques : %v\n", err)
+		return
 	}
 
 	if len(disks) == 0 {
@@ -187,5 +199,66 @@ func DiskInfo() {
 		}
 	}
 
+	fmt.Println()
+}
+
+// PrintNetworkInterfaces displays all detected network interfaces
+func PrintNetworkInterfaces() {
+	interfaces, err := network.ListNetworkInterfaces()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+
+	if len(interfaces) == 0 {
+		fmt.Println("\nNo network interfaces detected.")
+		return
+	}
+
+	fmt.Printf("\n" + strings.Repeat("=", 70) + "\n")
+	fmt.Printf("  NETWORK INTERFACES DETECTED: %d\n", len(interfaces))
+	fmt.Printf(strings.Repeat("=", 70) + "\n\n")
+
+	for i, iface := range interfaces {
+		fmt.Printf("Interface #%d\n", i+1)
+		fmt.Println(strings.Repeat("-", 70))
+		fmt.Printf("  Name            : %s\n", iface.Name)
+
+		if iface.MACAddress != "" {
+			fmt.Printf("  MAC Address     : %s\n", iface.MACAddress)
+		}
+
+		if iface.Type != "" {
+			fmt.Printf("  Type            : %s\n", iface.Type)
+		}
+
+		fmt.Printf("  State           : ")
+		if iface.IsUp {
+			fmt.Printf("UP ✅\n")
+		} else {
+			fmt.Printf("DOWN ❌\n")
+		}
+
+		if iface.Speed != "" {
+			fmt.Printf("  Speed           : %s\n", iface.Speed)
+		}
+
+		fmt.Printf("  Carrier         : ")
+		if iface.Carrier {
+			fmt.Printf("Connected 🔌\n")
+		} else {
+			fmt.Printf("Disconnected\n")
+		}
+
+		if iface.IPAddress != "" {
+			fmt.Printf("  IP              : %s\n", iface.IPAddress)
+		}
+
+		fmt.Println(strings.Repeat("-", 70))
+
+		if i < len(interfaces)-1 {
+			fmt.Println()
+		}
+	}
 	fmt.Println()
 }
