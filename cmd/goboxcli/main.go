@@ -1,8 +1,14 @@
 package main
 
-import "gobox/internal/print"
+import (
+	"gobox/internal/hardware/network"
+)
 
 func main() {
 	// print.CPUInfo()
-	print.DiskInfo()
+	// ports.PrintSerialPorts()
+	// ports.PrintUSBInfo()
+	network.PrintNetworkInterfaces()
+	// ports.PrintUSBCPorts()
+	// print.DiskInfo()
 }
