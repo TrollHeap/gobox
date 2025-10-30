@@ -3,6 +3,7 @@ package battery
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"sync"
 
 	"gobox/internal/sysfs"
@@ -51,29 +52,39 @@ func GetBatteryInfo() (BatteryInfo, error) {
 		return BatteryInfo{}, err
 	}
 
-	capacity, err := sysfs.ReadInt(path, "capacity")
+	// Required fields
+	capacity, err := sysfs.ReadInt(filepath.Join(path, "capacity"))
 	if err != nil {
 		return BatteryInfo{}, fmt.Errorf("reading capacity: %w", err)
 	}
 
-	status, err := sysfs.ReadString(path, "status")
+	status, err := sysfs.ReadFile(filepath.Join(path, "status"))
 	if err != nil {
 		return BatteryInfo{}, fmt.Errorf("reading status: %w", err)
 	}
 
-	// Lecture des champs optionnels sans logger, uniquement gestion d'absence avec pointeur nil
-	manufacturer, _ := sysfs.ReadString(path, "manufacturer")
-	model, _ := sysfs.ReadString(path, "model_name")
-	serialNumber, _ := sysfs.ReadString(path, "serial_number")
-	technology, _ := sysfs.ReadString(path, "technology")
+	// Optional fields (no error handling, use empty string if missing)
+	manufacturer, _ := sysfs.ReadFileOptional(filepath.Join(path, "manufacturer"))
+	model, _ := sysfs.ReadFileOptional(filepath.Join(path, "model_name"))
+	serialNumber, _ := sysfs.ReadFileOptional(filepath.Join(path, "serial_number"))
+	technology, _ := sysfs.ReadFileOptional(filepath.Join(path, "technology"))
 
-	cycle, _ := sysfs.ReadInt(path, "cycle_count")
+	cycle := 0
+	if c, err := sysfs.ReadInt(filepath.Join(path, "cycle_count")); err == nil {
+		cycle = c
+	}
 
-	voltNow, _ := sysfs.ReadFloat(path, "voltage_now")
+	voltNow := 0.0
+	if v, err := sysfs.ReadFloat(filepath.Join(path, "voltage_now")); err == nil {
+		voltNow = v
+	}
 
-	energyFull, _ := sysfs.ReadFloat(path, "energy_full_design")
+	energyFull := 0.0
+	if e, err := sysfs.ReadFloat(filepath.Join(path, "energy_full_design")); err == nil {
+		energyFull = e
+	}
 
-	// Conversion avec gestion d'erreur silencieuse
+	// Convert Wh to Ah (silent error handling)
 	energyAH, _ := utils.ConvertWattToAmpere(path, energyFull)
 
 	return BatteryInfo{
