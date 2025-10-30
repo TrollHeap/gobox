@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+const ttyRoot = "/sys/class/tty/"
+
 // SerialPort représente un port série
 type SerialPort struct {
 	Name   string // Ex: "ttyS0", "ttyUSB0"
@@ -16,22 +18,26 @@ type SerialPort struct {
 
 // ListSerialPorts liste tous les ports série physiques
 func ListSerialPorts() ([]SerialPort, error) {
-	const ttyRoot = "/sys/class/tty/"
-
 	entries, err := os.ReadDir(ttyRoot)
 	if err != nil {
 		return nil, fmt.Errorf("lecture %s: %w", ttyRoot, err)
 	}
 
-	ports := make([]SerialPort, 0)
+	// Pré-allocation (rarement plus de 4 ports série)
+	ports := make([]SerialPort, 0, 4)
 
 	for _, entry := range entries {
 		name := entry.Name()
 
+		// Validation sécurité (réutilise fonction commune)
+		if err := validateSysfsName(name); err != nil {
+			continue
+		}
+
 		// Filtrer console et ttys système (non-série)
 		if name == "console" ||
 			name == "tty" ||
-			strings.HasPrefix(name, "tty") && len(name) == 4 && name[3] >= '0' && name[3] <= '9' {
+			(strings.HasPrefix(name, "tty") && len(name) == 4 && name[3] >= '0' && name[3] <= '9') {
 			continue // tty0-tty9 virtuels
 		}
 
@@ -52,20 +58,15 @@ func ListSerialPorts() ([]SerialPort, error) {
 		driverPath := filepath.Join(devicePath, "device", "driver")
 		if target, err := os.Readlink(driverPath); err == nil {
 			port.Driver = filepath.Base(target)
+
+			// Filtrer ports fantômes avec driver "port"
+			if port.Driver == "port" {
+				continue // Ignorer les ttyS* fantômes
+			}
 		}
 
 		ports = append(ports, port)
 	}
 
 	return ports, nil
-}
-
-func validatePortName(name string) error {
-	if name == "" {
-		return fmt.Errorf("nom de port vide")
-	}
-	if strings.Contains(name, "..") || strings.Contains(name, "/") {
-		return fmt.Errorf("nom de port invalide : %s", name)
-	}
-	return nil
 }
