@@ -1,4 +1,4 @@
-package print
+package print_hw
 
 import (
 	"fmt"
@@ -43,6 +43,8 @@ func BatteryInfo() {
 	fmt.Printf("Cycles           : %d\n", info.Cycle)
 	fmt.Printf("Tension actuelle : %.2f V\n", info.VoltageNow/1_000_000)
 	fmt.Printf("Capacité totale  : %.0f mAh\n", info.EnergyAH)
+	fmt.Printf("Capacité actuelle : %.0f \n", info.EnergyFull)
+	fmt.Printf("Capacité Neuve : %.0f \n", info.EnergyFullDesign)
 }
 
 func RamInfo() {
