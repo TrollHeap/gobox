@@ -1,4 +1,4 @@
-package bin
+package cputest
 
 import (
 	"os/exec"

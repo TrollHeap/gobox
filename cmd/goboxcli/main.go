@@ -1,10 +1,9 @@
 package main
 
+import printHw "gobox/internal/print_hw"
+
 func main() {
 	// print.CPUInfo()
-	// ports.PrintSerialPorts()
-	// ports.PrintUSBInfo()
-	// network.PrintNetworkInterfaces()
-	// ports.PrintUSBCPorts()
+	printHw.BatteryInfo()
 	// print.DiskInfo()
 }

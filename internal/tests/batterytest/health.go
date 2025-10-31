@@ -1,4 +1,4 @@
-package battery
+package batterytest
 
 // BatteryHealthTest represents battery health test results
 type BatteryHealthTest struct {
