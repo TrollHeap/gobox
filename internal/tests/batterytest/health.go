@@ -1,16 +1,41 @@
 package batterytest
 
-// BatteryHealthTest represents battery health test results
-type BatteryHealthTest struct {
-	Status            string  `json:"status"`           // "passed", "warning", "failed", "skipped"
-	CapacityPercent   float64 `json:"capacity_percent"` // % capacité restante
-	HealthStatus      string  `json:"health_status"`    // "Excellent", "Good", "Fair", "Poor", "Critical"
-	CycleCount        int     `json:"cycle_count"`
-	RecommendedAction string  `json:"recommended_action"`
-	Details           string  `json:"details"`
-}
+import (
+	"fmt"
 
-// RunBatteryHealthTest performs battery health analysis
-func RunBatteryHealthTest() (*BatteryHealthTest, error) {
-	// 🎓 TON CODE ICI
+	"gobox/internal/hardware/battery"
+)
+
+func BatteryInfo() {
+	info, err := battery.GetBatteryInfo()
+	if err != nil {
+		fmt.Println("Erreur:", err)
+		return
+	}
+
+	if info.Capacity < 0 {
+		fmt.Println("Batterie        : Pas de batterie détectée")
+		return
+	}
+
+	fmt.Printf("Batterie         : %d%% (%s)\n", info.Capacity, info.Status)
+
+	if info.Manufacturer != nil {
+		fmt.Printf("Fabricant        : %s\n", *info.Manufacturer)
+	}
+	if info.Model != nil {
+		fmt.Printf("Modèle           : %s\n", *info.Model)
+	}
+	if info.Serial != nil {
+		fmt.Printf("Numéro série     : %s\n", *info.Serial)
+	}
+	if info.Technology != nil {
+		fmt.Printf("Technologie      : %s\n", *info.Technology)
+	}
+
+	fmt.Printf("Cycles           : %d\n", info.Cycle)
+	fmt.Printf("Tension actuelle : %.2f V\n", info.VoltageNow/1_000_000)
+	fmt.Printf("Capacité totale  : %.0f mAh\n", info.EnergyAH)
+	fmt.Printf("Capacité actuelle : %.0f \n", info.DesignCapacity)
+	fmt.Printf("Capacité Neuve : %.0f \n", info.DesignCapacity)
 }
