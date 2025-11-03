@@ -13,17 +13,17 @@ import (
 )
 
 type BatteryInfo struct {
-	Status           string
-	Manufacturer     *string
-	Model            *string
-	Serial           *string
-	Technology       *string
-	Capacity         int
-	Cycle            int
-	EnergyAH         float64
-	VoltageNow       float64
-	EnergyFull       float64 // ← Capacité actuelle (réelle)
-	EnergyFullDesign float64 // 🆕 Capacité théorique (neuve)
+	Status          string
+	Manufacturer    *string
+	Model           *string
+	Serial          *string
+	Technology      *string
+	Capacity        int
+	Cycle           int
+	EnergyAH        float64
+	VoltageNow      float64
+	DesignCapacity  float64 // 🆕 Capacité théorique (neuve)
+	CurrentCapacity float64 // 🆕 Capacité actuelle
 }
 
 var (
@@ -86,32 +86,32 @@ func GetBatteryInfo() (BatteryInfo, error) {
 		voltNow = v
 	}
 
-	energyFull := 0.0
+	currentCapacity := 0.0
 	if e, err := sysfs.ReadFloat(filepath.Join(path, "energy_full")); err == nil {
-		energyFull = e
+		currentCapacity = e
 	}
 
 	// Capacité théorique (neuve)
-	energyFullDesign := 0.0
+	designCapacity := 0.0
 	if e, err := sysfs.ReadFloat(filepath.Join(path, "energy_full_design")); err == nil {
-		energyFullDesign = e
+		designCapacity = e
 	}
 
 	// Convert Wh to Ah (silent error handling)
-	energyAH, _ := utils.ConvertWattToAmpere(path, energyFull)
+	energyAH, _ := utils.ConvertWattToAmpere(path, currentCapacity)
 
 	return BatteryInfo{
-		Status:           status,
-		Manufacturer:     strPtrIfNotEmpty(manufacturer),
-		Model:            strPtrIfNotEmpty(model),
-		Serial:           strPtrIfNotEmpty(serialNumber),
-		Technology:       strPtrIfNotEmpty(technology),
-		Capacity:         capacity,
-		Cycle:            cycle,
-		EnergyAH:         energyAH,
-		VoltageNow:       voltNow,
-		EnergyFull:       energyFull,
-		EnergyFullDesign: energyFullDesign,
+		Status:          status,
+		Manufacturer:    strPtrIfNotEmpty(manufacturer),
+		Model:           strPtrIfNotEmpty(model),
+		Serial:          strPtrIfNotEmpty(serialNumber),
+		Technology:      strPtrIfNotEmpty(technology),
+		Capacity:        capacity,
+		Cycle:           cycle,
+		EnergyAH:        energyAH,
+		VoltageNow:      voltNow,
+		CurrentCapacity: currentCapacity,
+		DesignCapacity:  designCapacity,
 	}, nil
 }
 
