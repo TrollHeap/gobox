@@ -11,6 +11,17 @@ const (
 	StatusNotCharging = "Not charging"
 )
 
+func DefaultBatteryGradingCriteria() BatteryGradingCriteria {
+	return BatteryGradingCriteria{
+		MinHealthForA: 85.0, // 85% de santé = A
+		MinHealthForB: 70.0, // 70% de santé = B
+		MinHealthForC: 50.0, // 50% de santé = C
+		MaxCyclesForA: 300,  // <= 300 cycles = A
+		MaxCyclesForB: 500,  // <= 500 cycles = B
+		MaxCyclesForC: 800,  // <= 800 cycles = C
+	}
+}
+
 func CalculateHealthPercent(designCapacity, currentCapacity float64) float64 {
 	if designCapacity <= 0 {
 		return 0.0

@@ -2,40 +2,44 @@ package batterytest
 
 import (
 	"fmt"
+	"time"
 
 	"gobox/internal/hardware/battery"
 )
 
-func BatteryInfo() {
+// RunBatteryTest exécute le test batterie et retourne le résultat structuré
+// Retourne (résultat, erreur)
+func RunBatteryTest() (BatteryHealthTest, error) {
+	// 1. Récupérer les données brutes
 	info, err := battery.GetBatteryInfo()
 	if err != nil {
-		fmt.Println("Erreur:", err)
-		return
+		return BatteryHealthTest{}, fmt.Errorf("récupération batterie: %w", err)
 	}
 
+	// 2. Vérifier que la batterie existe
 	if info.Capacity < 0 {
-		fmt.Println("Batterie        : Pas de batterie détectée")
-		return
+		return BatteryHealthTest{}, fmt.Errorf("batterie non détectée")
 	}
 
-	fmt.Printf("Batterie         : %d%% (%s)\n", info.Capacity, info.Status)
+	// 3. Charger les critères
+	criteria := DefaultBatteryGradingCriteria()
 
-	if info.Manufacturer != nil {
-		fmt.Printf("Fabricant        : %s\n", *info.Manufacturer)
-	}
-	if info.Model != nil {
-		fmt.Printf("Modèle           : %s\n", *info.Model)
-	}
-	if info.Serial != nil {
-		fmt.Printf("Numéro série     : %s\n", *info.Serial)
-	}
-	if info.Technology != nil {
-		fmt.Printf("Technologie      : %s\n", *info.Technology)
-	}
+	// 4. Calculer la santé
+	healthPercent := CalculateHealthPercent(info.DesignCapacity, info.CurrentCapacity)
 
-	fmt.Printf("Cycles           : %d\n", info.Cycle)
-	fmt.Printf("Tension actuelle : %.2f V\n", info.VoltageNow/1_000_000)
-	fmt.Printf("Capacité totale  : %.0f mAh\n", info.EnergyAH)
-	fmt.Printf("Capacité actuelle : %.0f \n", info.DesignCapacity)
-	fmt.Printf("Capacité Neuve : %.0f \n", info.DesignCapacity)
+	// 5. Obtenir le grade
+	grade := ComputeGrade(criteria, healthPercent, info.Cycle)
+
+	// 6. Détecter les problèmes
+	issues := DetectIssues(info.Status, healthPercent, info.Cycle, criteria)
+
+	// 7. Construire et retourner le résultat
+	return BatteryHealthTest{
+		Status:           info.Status,
+		Grade:            grade,
+		HealthPercentage: healthPercent,
+		CycleCount:       info.Cycle,
+		Issues:           issues,
+		Timestamp:        time.Now(),
+	}, nil
 }
