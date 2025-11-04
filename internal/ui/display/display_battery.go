@@ -1,4 +1,4 @@
-package print_hw
+package ui
 
 import (
 	"fmt"
