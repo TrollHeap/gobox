@@ -3,11 +3,11 @@ package ui
 import (
 	"fmt"
 
-	"gobox/internal/hardware/cpu"
+	"gobox/internal/probe"
 )
 
 func DisplayCPUInfo() {
-	info, err := cpu.GetCPUInfo()
+	info, err := probe.GetCPUInfo()
 	if err != nil {
 		fmt.Printf("Erreur: %v\n", err)
 		return

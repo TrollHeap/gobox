@@ -3,13 +3,13 @@ package ui
 import (
 	"fmt"
 
-	"gobox/internal/hardware/battery"
-	"gobox/internal/tests/batterytest"
+	diagBattery "gobox/internal/diagnostic/battery"
+	"gobox/internal/probe"
 )
 
 func DisplayBatteryReport() error {
 	// 1. Récupérer les données brutes
-	info, err := battery.GetBatteryInfo()
+	info, err := probe.GetBatteryInfo()
 	if err != nil {
 		return fmt.Errorf("erreur batterie: %w", err)
 	}
@@ -20,7 +20,7 @@ func DisplayBatteryReport() error {
 	}
 
 	// 2. Exécuter le test de santé
-	result, err := batterytest.RunBatteryTest()
+	result, err := diagBattery.RunBatteryTest()
 	if err != nil {
 		return fmt.Errorf("test batterie échoué: %w", err)
 	}

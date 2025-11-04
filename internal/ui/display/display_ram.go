@@ -3,11 +3,11 @@ package ui
 import (
 	"fmt"
 
-	"gobox/internal/hardware/ram"
+	"gobox/internal/probe"
 )
 
 func DisplayRamInfo() {
-	info, err := ram.GetMemoryInfo()
+	info, err := probe.GetMemoryInfo()
 	if err != nil {
 		fmt.Println("Erreur :", err)
 		return

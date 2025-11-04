@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	"gobox/internal/hardware/network"
+	"gobox/internal/probe"
 )
 
 // PrintNetworkInterfaces displays all detected network interfaces
 func PrintNetworkInterfaces() {
-	interfaces, err := network.ListNetworkInterfaces()
+	interfaces, err := probe.ListNetworkInterfaces()
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return

@@ -5,11 +5,11 @@ import (
 	"log"
 	"strings"
 
-	"gobox/internal/hardware/disk"
+	"gobox/internal/probe"
 )
 
 func DiskInfo() {
-	disks, err := disk.ListDisks()
+	disks, err := probe.ListDisks()
 	if err != nil {
 		fmt.Printf("Erreur listage disques : %v\n", err)
 		return
@@ -25,7 +25,7 @@ func DiskInfo() {
 	fmt.Printf(strings.Repeat("=", 70) + "\n\n")
 
 	for i, diskName := range disks {
-		info, err := disk.GetDiskInfo(diskName)
+		info, err := probe.GetDiskInfo(diskName)
 		if err != nil {
 			log.Printf("Erreur récupération infos pour %s : %v\n", diskName, err)
 			continue

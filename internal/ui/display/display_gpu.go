@@ -3,11 +3,11 @@ package ui
 import (
 	"fmt"
 
-	"gobox/internal/hardware/gpu"
+	"gobox/internal/probe"
 )
 
 func DisplayGPUInfo() {
-	gpus, err := gpu.DetectGPUs()
+	gpus, err := probe.DetectGPUs()
 	if err != nil {
 		fmt.Printf("Erreur de détection GPU : %v\n", err)
 		return
