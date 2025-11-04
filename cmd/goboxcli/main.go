@@ -39,9 +39,7 @@ func (m model) View() string {
 }
 
 func main() {
-	// print.CPUInfo()
-	display.DisplayRamInfo()
-	// print.DiskInfo()
+	display.DisplayBatteryReport()
 	p := tea.NewProgram(NewModel())
 	if err := p.Start(); err != nil {
 		fmt.Println("Erreur:", err)
