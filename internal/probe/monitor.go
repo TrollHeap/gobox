@@ -1,4 +1,4 @@
-package gpu
+package probe
 
 import (
 	"fmt"

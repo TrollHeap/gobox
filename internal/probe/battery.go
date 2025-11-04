@@ -1,4 +1,4 @@
-package battery
+package probe
 
 import (
 	"errors"
