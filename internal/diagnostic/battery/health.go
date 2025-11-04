@@ -1,17 +1,17 @@
-package batterytest
+package battery
 
 import (
 	"fmt"
 	"time"
 
-	"gobox/internal/hardware/battery"
+	"gobox/internal/probe"
 )
 
 // RunBatteryTest exécute le test batterie et retourne le résultat structuré
 // Retourne (résultat, erreur)
 func RunBatteryTest() (BatteryHealthTest, error) {
 	// 1. Récupérer les données brutes
-	info, err := battery.GetBatteryInfo()
+	info, err := probe.GetBatteryInfo()
 	if err != nil {
 		return BatteryHealthTest{}, fmt.Errorf("récupération batterie: %w", err)
 	}

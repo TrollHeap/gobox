@@ -1,10 +1,14 @@
-package batterytest
+package battery
 
-import "time"
+import (
+	"time"
+
+	"gobox/internal/diagnostic/common"
+)
 
 type BatteryHealthTest struct {
 	Status           string
-	Grade            string
+	Grade            common.Grade
 	HealthPercentage float64
 	CycleCount       int
 	Issues           []string
